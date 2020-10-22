@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from skimage.transform import pyramid_gaussian
-from NCC import NCC
+import pytorch_ssim
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -86,49 +86,39 @@ def PerspectiveWarping(I, H, xv, yv):
   J = F.grid_sample(I,torch.stack([xvt,yvt],2).unsqueeze(0),align_corners=False).squeeze()
   return J
 
-def multi_resolution_NCC_loss():
+def multi_resolution_SSIM_loss():
   loss=0.0
   for s in np.arange(L-1,-1,-1):
     Jw_ = PerspectiveWarping(J_lst[s].unsqueeze(0).unsqueeze(0), homography_net(), xy_lst[s][:,:,0], xy_lst[s][:,:,1]).squeeze()
-    new_I = I_lst[s].unsqueeze(0)
+    new_I = I_lst[s].unsqueeze(0).unsqueeze(0)
     new_J = Jw_.unsqueeze(0).unsqueeze(0)
-
-    if s == 0:
-      i1 = new_I.permute(1, 2, 0).cpu().numpy()
-      i2 = torch.squeeze(new_J, 0).permute(1, 2, 0).cpu().detach().numpy()
-      fig = plt.figure()
-      fig.add_subplot(1, 2, 1)
-      plt.imshow(i1, cmap="gray")
-      plt.title("Fixed Image")
-      fig.add_subplot(1, 2, 2)
-      plt.imshow(i2, cmap="gray")
-      plt.title("Moving Image")
-      plt.show()
-
-    ncc = NCC()
-    ncc_response = ncc(new_I, new_J)
-    loss = loss - (1. / L) * ncc_response.max()
-  return loss, ncc_response.max()
+    ssim_loss = pytorch_ssim.SSIM()
+    ssim_out = -ssim_loss(new_I, new_J)
+    loss = loss + (1./L)*ssim_out
+    ssim_value = - ssim_out.data
+  return loss, ssim_value
 
 homography_net = HomographyNet().to(device)
-ncc_net = NCC().to(device)
-optimizer = optim.Adam([{'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
+
+ssim_net = pytorch_ssim.SSIM().to(device)
+optimizer = optim.Adam([{'params': ssim_net.parameters(), 'lr': 1e-2},
+                        {'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
 
 for itr in range(100):
   optimizer.zero_grad()
-  loss,ncc_value = multi_resolution_NCC_loss()
+  loss, ssim_value = multi_resolution_SSIM_loss()
   if itr%10 == 0:
-    print("Itr:",itr,"NCC value:","{:.4f}".format(ncc_value))
-    print("NCC loss:", "{:.4f}".format(loss))
+    print("Itr:",itr,"SSIM value:","{:.4f}".format(ssim_value))
+    print("SSIM loss:", "{:.4f}".format(loss))
   loss.backward()
   optimizer.step()
-print("Itr:",itr+1,"NCC value:","{:.4f}".format(ncc_value))
+print("Itr:",itr+1,"SSIM value:","{:.4f}".format(ssim_value))
 
 
-#def histogram_NCC(image1, image2):
-#  img1 = torch.from_numpy(image1).unsqueeze(0).unsqueeze(0)
-#  img2 = torch.from_numpy(image2).unsqueeze(0).unsqueeze(0)
-#  return NCC(img1, img2)
+def histogram_SSIM(image1, image2):
+  img1 = torch.from_numpy(image1).unsqueeze(0).unsqueeze(0)
+  img2 = torch.from_numpy(image2).unsqueeze(0).unsqueeze(0)
+  return pytorch_ssim.ssim(img1, img2)
 
 
 I_t = torch.tensor(I).to(device)
@@ -139,8 +129,8 @@ J_w = PerspectiveWarping(J_t.unsqueeze(0).unsqueeze(0), H, xy_lst[0][:, :, 0], x
 D = J_t - I_t
 D_w = J_w - I_t
 
-#print("NCC value before registration:", "{:.4f}".format(histogram_NCC(I, J)))
-#print("NCC value after registration:", "{:.4f}".format(histogram_NCC(I, J_w.cpu().detach().numpy())))
+print("SSIM value before registration:", "{:.4f}".format(histogram_SSIM(I, J)))
+print("SSIM value after registration:", "{:.4f}".format(histogram_SSIM(I, J_w.cpu().detach().numpy())))
 
 print("Transformation matrix:")
 print(H.cpu().detach().numpy())
