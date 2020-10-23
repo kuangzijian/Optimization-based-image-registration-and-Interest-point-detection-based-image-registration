@@ -1,5 +1,10 @@
+import logging
 import torch
 from torch.nn import functional as F
+
+
+ncc_logger = logging.getLogger(__name__)
+
 
 def patch_mean(images, patch_shape):
     channels, *patch_size = patch_shape
@@ -27,9 +32,6 @@ def patch_std(image, patch_shape):
 
 
 def channel_normalize(template):
-    """
-    Z-normalize image channels independently.
-    """
     reshaped_template = template.clone().view(template.shape[0], -1)
     reshaped_template.sub_(reshaped_template.mean(dim=-1, keepdim=True))
     reshaped_template.div_(reshaped_template.std(dim=-1, keepdim=True, unbiased=False))
@@ -38,22 +40,18 @@ def channel_normalize(template):
 
 
 class NCC(torch.nn.Module):
-
-    def __init__(self, keep_channels=False):
+    def __init__(self, template, keep_channels=False):
         super().__init__()
 
         self.keep_channels = keep_channels
 
-
-
-    def forward(self, template, image):
         channels, *template_shape = template.shape
         dimensions = len(template_shape)
         self.padding = tuple(side // 2 for side in template_shape)
 
         self.conv_f = (F.conv1d, F.conv2d, F.conv3d)[dimensions - 1]
         self.normalized_template = channel_normalize(template)
-        ones = template.dim() * (1,)
+        ones = template.dim() * (1, )
         self.normalized_template = self.normalized_template.repeat(channels, *ones)
         # Make convolution operate on single channels
         channel_selector = torch.eye(channels).byte()
@@ -62,6 +60,7 @@ class NCC(torch.nn.Module):
         patch_elements = torch.Tensor(template_shape).prod().item()
         self.normalized_template.div_(patch_elements)
 
+    def forward(self, image):
         result = self.conv_f(image, self.normalized_template, padding=self.padding, bias=None)
         std = patch_std(image, self.normalized_template.shape[1:])
         result.div_(std)

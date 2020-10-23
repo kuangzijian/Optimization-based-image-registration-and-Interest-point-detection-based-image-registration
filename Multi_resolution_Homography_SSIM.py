@@ -92,24 +92,20 @@ def multi_resolution_SSIM_loss():
     Jw_ = PerspectiveWarping(J_lst[s].unsqueeze(0).unsqueeze(0), homography_net(), xy_lst[s][:,:,0], xy_lst[s][:,:,1]).squeeze()
     new_I = I_lst[s].unsqueeze(0).unsqueeze(0)
     new_J = Jw_.unsqueeze(0).unsqueeze(0)
-    ssim_loss = pytorch_ssim.SSIM()
     ssim_out = -ssim_loss(new_I, new_J)
     loss = loss + (1./L)*ssim_out
     ssim_value = - ssim_out.data
   return loss, ssim_value
 
 homography_net = HomographyNet().to(device)
-
-ssim_net = pytorch_ssim.SSIM().to(device)
-optimizer = optim.Adam([{'params': ssim_net.parameters(), 'lr': 1e-2},
-                        {'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
+ssim_loss  = pytorch_ssim.SSIM()
+optimizer = optim.Adam([{'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
 
 for itr in range(100):
   optimizer.zero_grad()
   loss, ssim_value = multi_resolution_SSIM_loss()
   if itr%10 == 0:
     print("Itr:",itr,"SSIM value:","{:.4f}".format(ssim_value))
-    print("SSIM loss:", "{:.4f}".format(loss))
   loss.backward()
   optimizer.step()
 print("Itr:",itr+1,"SSIM value:","{:.4f}".format(ssim_value))

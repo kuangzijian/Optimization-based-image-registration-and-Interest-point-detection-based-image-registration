@@ -22,7 +22,7 @@ optimizer = optim.Adam([img2], lr=0.01)
 a = 0
 
 while a <= 20:
-    loss=0.0
+    loss=1.0
     optimizer.zero_grad()
     ncc_response = ncc(img1, img2)
     i1 = img1.permute(1,2,0).cpu().numpy()

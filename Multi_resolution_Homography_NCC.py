@@ -92,26 +92,12 @@ def multi_resolution_NCC_loss():
     Jw_ = PerspectiveWarping(J_lst[s].unsqueeze(0).unsqueeze(0), homography_net(), xy_lst[s][:,:,0], xy_lst[s][:,:,1]).squeeze()
     new_I = I_lst[s].unsqueeze(0)
     new_J = Jw_.unsqueeze(0).unsqueeze(0)
-
-    if s == 0:
-      i1 = new_I.permute(1, 2, 0).cpu().numpy()
-      i2 = torch.squeeze(new_J, 0).permute(1, 2, 0).cpu().detach().numpy()
-      fig = plt.figure()
-      fig.add_subplot(1, 2, 1)
-      plt.imshow(i1, cmap="gray")
-      plt.title("Fixed Image")
-      fig.add_subplot(1, 2, 2)
-      plt.imshow(i2, cmap="gray")
-      plt.title("Moving Image")
-      plt.show()
-
-    ncc = NCC()
-    ncc_response = ncc(new_I, new_J)
+    ncc = NCC(new_I).to(device)
+    ncc_response = ncc(new_J)
     loss = loss - (1. / L) * ncc_response.max()
   return loss, ncc_response.max()
 
 homography_net = HomographyNet().to(device)
-ncc_net = NCC().to(device)
 optimizer = optim.Adam([{'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
 
 for itr in range(100):
