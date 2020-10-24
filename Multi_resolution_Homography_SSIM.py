@@ -98,7 +98,7 @@ def multi_resolution_SSIM_loss():
   return loss, ssim_value
 
 homography_net = HomographyNet().to(device)
-ssim_loss  = pytorch_ssim.SSIM()
+ssim_loss = pytorch_ssim.SSIM()
 optimizer = optim.Adam([{'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
 
 for itr in range(100):

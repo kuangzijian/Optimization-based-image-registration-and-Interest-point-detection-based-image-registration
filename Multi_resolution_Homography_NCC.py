@@ -77,7 +77,6 @@ def MatrixExp(B,v):
     return H
 
 
-
 def PerspectiveWarping(I, H, xv, yv):
 
   # apply transformation in the homogeneous coordinates
@@ -92,12 +91,12 @@ def multi_resolution_NCC_loss():
     Jw_ = PerspectiveWarping(J_lst[s].unsqueeze(0).unsqueeze(0), homography_net(), xy_lst[s][:,:,0], xy_lst[s][:,:,1]).squeeze()
     new_I = I_lst[s].unsqueeze(0)
     new_J = Jw_.unsqueeze(0).unsqueeze(0)
-    ncc = NCC(new_I).to(device)
-    ncc_response = ncc(new_J)
+    ncc_response = ncc(new_I, new_J)
     loss = loss - (1. / L) * ncc_response.max()
   return loss, ncc_response.max()
 
 homography_net = HomographyNet().to(device)
+ncc = NCC().to(device)
 optimizer = optim.Adam([{'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
 
 for itr in range(100):
@@ -111,10 +110,14 @@ for itr in range(100):
 print("Itr:",itr+1,"NCC value:","{:.4f}".format(ncc_value))
 
 
-#def histogram_NCC(image1, image2):
-#  img1 = torch.from_numpy(image1).unsqueeze(0).unsqueeze(0)
-#  img2 = torch.from_numpy(image2).unsqueeze(0).unsqueeze(0)
-#  return NCC(img1, img2)
+def histogram_mutual_information(image1, image2):
+  hgram, x_edges, y_edges = np.histogram2d(image1.ravel(), image2.ravel(), bins=100)
+  pxy = hgram / float(np.sum(hgram))
+  px = np.sum(pxy, axis=1)
+  py = np.sum(pxy, axis=0)
+  px_py = px[:, None] * py[None, :]
+  nzs = pxy > 0
+  return np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
 
 
 I_t = torch.tensor(I).to(device)
@@ -125,8 +128,8 @@ J_w = PerspectiveWarping(J_t.unsqueeze(0).unsqueeze(0), H, xy_lst[0][:, :, 0], x
 D = J_t - I_t
 D_w = J_w - I_t
 
-#print("NCC value before registration:", "{:.4f}".format(histogram_NCC(I, J)))
-#print("NCC value after registration:", "{:.4f}".format(histogram_NCC(I, J_w.cpu().detach().numpy())))
+print("Mutual information before registration:", "{:.4f}".format(histogram_mutual_information(I, J_t.cpu().detach().numpy())))
+print("Mutual information after registration:", "{:.4f}".format(histogram_mutual_information(I, J_w.cpu().detach().numpy())))
 
 print("Transformation matrix:")
 print(H.cpu().detach().numpy())

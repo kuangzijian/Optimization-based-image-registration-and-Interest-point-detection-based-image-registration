@@ -17,8 +17,8 @@ if torch.cuda.is_available():
     img2 = img2.cuda()
 
 
-img1 = Variable( img1,  requires_grad=False)
-img2 = Variable( img2, requires_grad = True)
+img1 = Variable(img1, requires_grad=False)
+img2 = Variable(img2, requires_grad=True)
 
 
 # Functional: pytorch_ssim.ssim(img1, img2, window_size = 11, size_average = True)
