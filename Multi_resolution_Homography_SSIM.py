@@ -111,10 +111,14 @@ for itr in range(100):
 print("Itr:",itr+1,"SSIM value:","{:.4f}".format(ssim_value))
 
 
-def histogram_SSIM(image1, image2):
-  img1 = torch.from_numpy(image1).unsqueeze(0).unsqueeze(0)
-  img2 = torch.from_numpy(image2).unsqueeze(0).unsqueeze(0)
-  return pytorch_ssim.ssim(img1, img2)
+def histogram_mutual_information(image1, image2):
+  hgram, x_edges, y_edges = np.histogram2d(image1.ravel(), image2.ravel(), bins=100)
+  pxy = hgram / float(np.sum(hgram))
+  px = np.sum(pxy, axis=1)
+  py = np.sum(pxy, axis=0)
+  px_py = px[:, None] * py[None, :]
+  nzs = pxy > 0
+  return np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
 
 
 I_t = torch.tensor(I).to(device)
@@ -125,8 +129,8 @@ J_w = PerspectiveWarping(J_t.unsqueeze(0).unsqueeze(0), H, xy_lst[0][:, :, 0], x
 D = J_t - I_t
 D_w = J_w - I_t
 
-print("SSIM value before registration:", "{:.4f}".format(histogram_SSIM(I, J)))
-print("SSIM value after registration:", "{:.4f}".format(histogram_SSIM(I, J_w.cpu().detach().numpy())))
+print("Mutual information before registration:", "{:.4f}".format(histogram_mutual_information(I, J)))
+print("Mutual information after registration:", "{:.4f}".format(histogram_mutual_information(I, J_w.cpu().detach().numpy())))
 
 print("Transformation matrix:")
 print(H.cpu().detach().numpy())
