@@ -86,7 +86,7 @@ def PerspectiveWarping(I, H, xv, yv):
   return J
 
 def multi_resolution_NCC_loss():
-  loss=0.0
+  loss=1.0
   for s in np.arange(L-1,-1,-1):
     Jw_ = PerspectiveWarping(J_lst[s].unsqueeze(0).unsqueeze(0), homography_net(), xy_lst[s][:,:,0], xy_lst[s][:,:,1]).squeeze()
     new_I = I_lst[s].unsqueeze(0)
@@ -97,14 +97,14 @@ def multi_resolution_NCC_loss():
 
 homography_net = HomographyNet().to(device)
 ncc = NCC().to(device)
-optimizer = optim.Adam([{'params': homography_net.v, 'lr': 1e-2}], amsgrad=True)
+optimizer = optim.Adam([homography_net.v], lr=0.01, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
 
-for itr in range(100):
+for itr in range(4):
   optimizer.zero_grad()
   loss,ncc_value = multi_resolution_NCC_loss()
-  if itr%10 == 0:
-    print("Itr:",itr,"NCC value:","{:.4f}".format(ncc_value))
-    print("NCC loss:", "{:.4f}".format(loss))
+  #if itr%10 == 0:
+  print("Itr:",itr,"NCC value:","{:.4f}".format(ncc_value))
+  print("NCC loss:", "{:.4f}".format(loss))
   loss.backward()
   optimizer.step()
 print("Itr:",itr+1,"NCC value:","{:.4f}".format(ncc_value))
