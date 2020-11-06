@@ -85,26 +85,31 @@ def PerspectiveWarping(I, H, xv, yv):
   J = F.grid_sample(I,torch.stack([xvt,yvt],2).unsqueeze(0),align_corners=False).squeeze()
   return J
 
+def ncc_val(I,J):
+  I_mean = torch.mean(I)
+  J_mean = torch.mean(J)
+  I_std = torch.std(I)
+  J_std = torch.std(J)
+  return torch.mean((I-I_mean)*(J-J_mean)/(I_std*J_std))
+
 def multi_resolution_NCC_loss():
-  loss=1.0
+  loss=0.0
   for s in np.arange(L-1,-1,-1):
     Jw_ = PerspectiveWarping(J_lst[s].unsqueeze(0).unsqueeze(0), homography_net(), xy_lst[s][:,:,0], xy_lst[s][:,:,1]).squeeze()
-    new_I = I_lst[s].unsqueeze(0)
-    new_J = Jw_.unsqueeze(0).unsqueeze(0)
-    ncc_response = ncc(new_I, new_J)
-    loss = loss - (1. / L) * ncc_response.max()
-  return loss, ncc_response.max()
+    ncc_value = ncc_val(I_lst[s], Jw_)
+    loss = loss - (1. / L) * ncc_value
+  #print(histogram_mutual_information(I_lst[s].cpu().detach().numpy(), Jw_.cpu().detach().numpy()))
+  return loss, ncc_value
 
 homography_net = HomographyNet().to(device)
-ncc = NCC().to(device)
-optimizer = optim.Adam([homography_net.v], lr=0.01, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
+optimizer = optim.Adam([{'params': homography_net.v, 'lr': 1e-4}], amsgrad=True)
 
-for itr in range(4):
+for itr in range(2200):
   optimizer.zero_grad()
   loss,ncc_value = multi_resolution_NCC_loss()
-  #if itr%10 == 0:
-  print("Itr:",itr,"NCC value:","{:.4f}".format(ncc_value))
-  print("NCC loss:", "{:.4f}".format(loss))
+  if itr%200 == 0:
+    print("Itr:",itr,"NCC value:","{:.4f}".format(ncc_value))
+    print("NCC loss:", "{:.4f}".format(loss))
   loss.backward()
   optimizer.step()
 print("Itr:",itr+1,"NCC value:","{:.4f}".format(ncc_value))
